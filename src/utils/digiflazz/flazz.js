@@ -12,7 +12,7 @@ export const DIGI_API_KEY = isDevelopment
 export const DIGI_USERNAME = process.env.DIGI_USERNAME;
 
 console.log(
-    `[Digiflazz] Berjalan dalam mode ${isDevelopment ? "DEVELOPMENT (sandbox)" : "PRODUCTION (live)"}`
+    `[Digiflazz] Berjalan dalam mode ${isDevelopment ? "DEVELOPMENT" : "PRODUCTION"}`
 );
 console.log(
     `[Digiflazz] Username  : ${DIGI_USERNAME ?? "⚠️ belum diisi di .env"}`
