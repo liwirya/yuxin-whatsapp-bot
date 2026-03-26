@@ -66,8 +66,8 @@ Ikuti alur eksekusi ini dengan presisi untuk memastikan sistem berjalan tanpa di
 1. **Kloning Repositori**
    Ambil *source code* secara langsung menggunakan git.
    ```bash
-   git clone https://github.com/liwirya/YuXin.git
-   cd YuXin
+   git clone https://github.com/liwirya/yuxin-whatsapp-bot.git
+   cd yuxin-whatsapp-bot
    ```
 
 2. **Instalasi Dependensi**
