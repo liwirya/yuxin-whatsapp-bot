@@ -45,7 +45,8 @@
     "node-webpmux": "^3.2.1",
     "path": "latest",
     "qrcode": "^1.5.4",
-    "qs": "latest"
+    "qs": "latest",
+    "url": "latest"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.28.4",
