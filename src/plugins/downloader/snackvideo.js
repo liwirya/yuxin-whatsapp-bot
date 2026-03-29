@@ -22,7 +22,7 @@ export default {
 		const url = m.text?.trim().split(" ")[0];
 
 		if (!url || (!url.includes("snackvideo.com") && !url.includes("sck.io"))) {
-			return m.reply(`[!] Masukkan URL SnackVideo yang valid.\nContoh: \`.snack https://s.snackvideo.com/p/pJjjGk5k\``);
+			return m.reply(`Input URL SnackVideo`);
 		}
 
 		try {
@@ -43,8 +43,7 @@ export default {
 
 		} catch (error) {
 			console.error("SNACKVIDEO ERROR", error.message);
-			return m.reply(`[!] Terjadi kesalahan sistem saat mencoba mengunduh dari SnackVideo.`);
+			return m.reply(`Terjadi kesalahan sistem.`);
 		}
 	},
 };
-
