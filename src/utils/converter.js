@@ -163,28 +163,26 @@ export async function webpToVideo(buffer) {
 }
 
 /**
- * Converts a WebP buffer to a PNG image.
+ * Converts a WebP buffer to a PNG image using FFmpeg.
  * @param {Buffer} buffer - The input buffer containing WebP data.
  * @returns {Promise<Buffer>} A promise that resolves with the PNG image buffer.
- * @throws Will throw an error if the conversion process fails.
  */
 export async function webpToImage(buffer) {
 	return new Promise((resolve, reject) => {
-		try {
-			const chunks = [];
-			const command = spawn("convert", ["webp:-", "png:-"]);
+		const outStream = new PassThrough();
+		const chunks = [];
 
-			command
-				.on("error", (e) => reject(e))
-				.stdout.on("data", (chunk) => chunks.push(chunk));
+		outStream.on("data", (c) => chunks.push(c));
+		outStream.on("end", () => resolve(Buffer.concat(chunks)));
+		outStream.on("error", reject);
 
-			command.stdin.write(buffer);
-			command.stdin.end();
-
-			command.on("exit", () => resolve(Buffer.concat(chunks)));
-		} catch (err) {
-			reject(err);
-		}
+		ffmpeg()
+			.input(bufferToStream(buffer))
+			.outputOptions(["-vframes", "1"])
+			.videoCodec("png")
+			.format("image2pipe")
+			.on("error", reject)
+			.pipe(outStream, { end: true });
 	});
 }
 
