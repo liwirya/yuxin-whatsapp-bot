@@ -9,7 +9,7 @@ export default {
 	cooldown: 5,
 	usage: "$prefix$command [keyword]",
 	react: true,
-	wait: "Sedang mencari, tunggu sebentar...",
+	wait: null,
 
 	execute: async (m, { sock }) => {
 		if (m.args.length === 0) {
@@ -17,6 +17,8 @@ export default {
 				`Harap masukkan pencarian!\n\n*Contoh:* \`${m.prefix}${m.command} Indonesia\``
 			);
 		}
+
+		await m.reply("Sedang mencari, tunggu sebentar...")
 
 		const keyword = m.args.join(" ");
 
