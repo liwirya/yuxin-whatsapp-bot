@@ -14,7 +14,7 @@ export default {
 	execute: async (m, { sock }) => {
 		if (m.args.length === 0) {
 			return m.reply(
-				`Harap masukkan pencarian!\n\n*Contoh:* \`${m.prefix}${m.command[0]} Indonesia\``
+				`Harap masukkan pencarian!\n\n*Contoh:* \`${m.prefix}${m.command} Indonesia\``
 			);
 		}
 
