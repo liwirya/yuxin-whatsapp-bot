@@ -9,7 +9,7 @@ const client = wrapper(axios.create({ jar }));
 export default {
 	name: "Komiku Search",
 	description: "Mencari manga/manhua/manhwa dari website Komiku",
-	command: ["komiku", "carimanga", "manga"],
+	command: ["komiku", "komikusrc", "kmusrc"],
 	permissions: "all",
 	hidden: false,
 	failed: "Failed to execute %command: %error",
