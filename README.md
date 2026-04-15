@@ -313,15 +313,6 @@ Kami sangat terbuka untuk kontribusi dari komunitas! Berikut cara berkontribusi:
 - Pastikan tidak ada error sebelum commit
 - Ikuti [Conventional Commits](https://www.conventionalcommits.org/) untuk pesan commit
 
-### Area yang Membutuhkan Kontribusi
-
-- [ ] Dokumentasi lebih lengkap
-- [ ] Unit testing
-- [ ] Fitur downloader tambahan
-- [ ] Optimasi database
-- [ ] Terjemahan multi-bahasa
-- [ ] Dashboard web untuk monitoring
-
 ## 📜 Lisensi
 
 ```
@@ -351,7 +342,7 @@ SOFTWARE.
 ---
 
 <div align="center">
-  <p>Dibuat dengan ❤️ oleh <strong>liwirya</strong></p>
+  <p>Dibuat dengan oleh <strong>Liwirya</strong></p>
   <p>
     <a href="https://github.com/liwirya/yuxin-whatsapp-bot">GitHub</a> •
     <a href="https://github.com/liwirya/yuxin-whatsapp-bot/issues">Issues</a> •
