@@ -10,7 +10,7 @@ export default {
 	react: true,
 	usage: "$prefix$command <nama panggilan>",
 	wait: "Mengambil detail member...",
-	failed: "Gagal menjalankan %command"
+	failed: "Gagal menjalankan %command",
 
 	/**
 	 * @param {import('baileys').WASocket} sock - The Baileys socket object.
