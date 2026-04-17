@@ -25,10 +25,10 @@ export const BOT_CONFIG = {
 					.filter(Boolean)
 		: [],
 	ownerJids: process.env.OWNER_JIDS
-		? process.env.OWNER_JIDS.includes("[")
-			? JSON.parse(process.env.OWNER_JIDS.replace(/'/g, '"'))
-			: process.env.OWNER_JIDS.split(",")
-		: [].map((jid) => jid.replace(/[^0-9]/g, "")).filter(Boolean),
+    ? process.env.OWNER_JIDS.includes("[")
+        ? JSON.parse(process.env.OWNER_JIDS.replace(/'/g, '"'))
+        : process.env.OWNER_JIDS.split(",")
+    : [].map((jid) => jid.replace(/[^0-9]/g, "")).filter(Boolean),
 	allowExperimental: process.env.BOT_ALLOW_EXPERIMENTAL !== "false",
 };
 
