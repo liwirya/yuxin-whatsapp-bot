@@ -778,8 +778,15 @@ export default async function serialize(sock, msg, store) {
 		}
 	}
 
-	const senderNum = extractNumber(m.senderPn || m.sender);
-	m.isOwner = !!senderNum && BOT_CONFIG.ownerJids.includes(senderNum);
+    const senderNum = extractNumber(m.senderPn)
+    || (!isLidJid(m.sender) ? extractNumber(m.sender) : null);
+
+    m.isOwner = !!senderNum && BOT_CONFIG.ownerJids.some((ownerNum) => {
+    if (ownerNum === senderNum) return true;
+    if (ownerNum.startsWith("62") && senderNum === "0" + ownerNum.slice(2)) return true;
+    if (senderNum.startsWith("62") && ownerNum === "0" + senderNum.slice(2)) return true;
+    return false;
+  });
 
 	if (m.isGroup && m.metadata) {
 		const sNum = extractNumber(m.senderPn || m.sender);
