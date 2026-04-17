@@ -1,5 +1,5 @@
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import vm from 'vm';
 
 export default async function scrapeSnaptik(tiktokUrl) {
