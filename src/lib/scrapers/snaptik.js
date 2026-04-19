@@ -1,4 +1,3 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import vm from 'vm';
 
@@ -6,18 +5,20 @@ export default async function scrapeSnaptik(tiktokUrl) {
     const userAgent = 'Mozilla/5.0 (Linux; Android 15.0.0; SM-A057F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36';
 
     try {
-        const baseResponse = await axios.get('https://snaptik.app/ID2', {
+        const baseResponse = await fetch('https://snaptik.app/ID2', {
             headers: {
                 'User-Agent': userAgent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
             }
         });
 
-        const cookies = baseResponse.headers['set-cookie']
-            ? baseResponse.headers['set-cookie'].map(c => c.split(';')[0]).join('; ')
+        const cookieHeader = baseResponse.headers.get('set-cookie');
+        const cookies = cookieHeader 
+            ? cookieHeader.split(',').map(c => c.split(';')[0].trim()).join('; ') 
             : '';
 
-        const $ = cheerio.load(baseResponse.data);
+        const baseHtml = await baseResponse.text();
+        const $ = cheerio.load(baseHtml);
         const token = $('input[name="token"]').val();
 
         if (!token) throw new Error('Gagal mengambil token Snaptik dari halaman utama.');
@@ -26,7 +27,9 @@ export default async function scrapeSnaptik(tiktokUrl) {
         params.append('url', tiktokUrl);
         params.append('token', token);
 
-        const postResponse = await axios.post('https://snaptik.app/abc2.php', params, {
+        const postResponse = await fetch('https://snaptik.app/abc2.php', {
+            method: 'POST',
+            body: params.toString(),
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Cookie': cookies,
@@ -36,7 +39,7 @@ export default async function scrapeSnaptik(tiktokUrl) {
             }
         });
 
-        const rawJs = postResponse.data;
+        const rawJs = await postResponse.text();
         let extractedHtml = '';
         
         const domMock = {
@@ -97,36 +100,45 @@ export default async function scrapeSnaptik(tiktokUrl) {
         const results = { sd: null, hd: null, audio: null };
 
         $$('a').each((i, el) => {
-            const href = $$(el).attr('href');
-            if (href && href.includes('token=') && !href.includes('snaptik.app')) { 
-                results.sd = href; 
+            let href = $$(el).attr('href');
+            if (!href || href === '#') return;
+
+            if (href.startsWith('//')) {
+                href = 'https:' + href;
+            } else if (href.startsWith('/')) {
+                href = 'https://snaptik.app' + href;
             }
-        });
 
-        $$('button').each((i, el) => {
-            const tokenHd = $$(el).attr('data-tokenhd');
-            if (tokenHd) results.hd = tokenHd;
-        });
-
-        $$('a').each((i, el) => {
-            const href = $$(el).attr('href');
             const text = $$(el).text().toLowerCase();
-            if (href && (text.includes('mp3') || text.includes('audio') || text.includes('music'))) {
+
+            if (text.includes('mp3') || text.includes('audio') || text.includes('music')) {
                 results.audio = href;
+            } else if (href.includes('token=') || href.includes('dl=')) {
+                if (!results.sd) results.sd = href; 
             }
         });
 
-        if (results.hd && results.hd.includes('api.snaptik.app')) {
+        const btnHd = $$('button[data-tokenhd]').first();
+        const tokenHd = btnHd.attr('data-tokenhd');
+        
+        if (tokenHd) {
+            const apiHdUrl = `https://api.snaptik.app/video-hd?token=${tokenHd}`;
             try {
-                const hdRes = await axios.get(results.hd, {
+                const hdRes = await fetch(apiHdUrl, {
                     headers: {
                         'User-Agent': userAgent,
                         'Referer': 'https://snaptik.app/',
                         'Origin': 'https://snaptik.app'
                     }
                 });
-                if (hdRes.data && hdRes.data.url) results.hd = hdRes.data.url;
-            } catch (err) {}
+                
+                const hdData = await hdRes.json();
+                if (hdData && hdData.url) {
+                    results.hd = hdData.url;
+                }
+            } catch (err) {
+                console.error("Gagal mendapatkan link HD:", err.message);
+            }
         }
 
         return { status: true, data: results };
