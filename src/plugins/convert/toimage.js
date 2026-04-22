@@ -19,20 +19,29 @@ export default {
 	owner: false,
 
 	/**
-	 * @param {import('baileys').WASocket} sock - The Baileys socket object.
-	 * @param {object} m - The serialized message object.
+	 * @param {import('baileys').WASocket} sock
+	 * @param {object} m
 	 */
 	execute: async (m) => {
-		const q = m.isQuoted ? m.quoted : m;
-		const mime = q.type || "";
-		if (!/webp|sticker|document/i.test(mime)) {
-			return m.reply("Please reply/send a sticker with the command.");
+		const q    = m.isQuoted ? m.quoted : m;
+		const mime = (q.type || q.mtype || "").toLowerCase();
+
+		if (/lottie/i.test(mime) || mime === "lottiestickermessage") {
+			return m.reply("Stiker animasi Lottie tidak bisa diconvert.");
 		}
-		const media = await q.download();
-		const buffer = Buffer.isBuffer(media)
-			? media
-			: Buffer.from(media, "utf-8");
-		const convert = await webpToImage(buffer);
-		await m.reply({ image: convert });
+
+		if (!/webp|sticker|document/i.test(mime)) {
+			return m.reply("Balas/kirim stiker dengan perintah ini ya.");
+		}
+
+		const media  = await q.download();
+		const buffer = Buffer.isBuffer(media) ? media : Buffer.from(media);
+
+		if (!buffer || buffer.length === 0) {
+			return m.reply("Buffer stiker kosong, coba kirim ulang.");
+		}
+
+		const result = await webpToImage(buffer);
+		return m.reply({ image: result });
 	},
 };
