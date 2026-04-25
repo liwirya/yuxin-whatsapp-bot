@@ -1,83 +1,84 @@
 import { fileTypeFromBuffer } from "file-type";
 
-async function YtDown(youtubeUrl, type) {
+const sesiyt = new Map();
+
+async function getYtdown(youtubeUrl) {
 	const baseUrl = "https://app.ytdown.to";
+	const proxyUrl = `${baseUrl}/proxy.php`;
+	const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+	const initRes = await fetch(baseUrl, { headers: { "User-Agent": userAgent } });
+	const rawCookies = initRes.headers.get("set-cookie") || "";
+	const sessionId = rawCookies.split(";")[0];
+
+	const payload = new URLSearchParams({ url: youtubeUrl });
 	const headers = {
 		"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 		"X-Requested-With": "XMLHttpRequest",
-		"Accept": "application/json, text/javascript, */*; q=0.01",
-		"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
-		"Cookie": "PHPSESSID=2mqep3me99ba1tpr5acr0r3t94",
+		"Origin": baseUrl,
+		"Referer": `${baseUrl}/`,
+		"User-Agent": userAgent,
+		"Cookie": sessionId
 	};
 
-	await fetch(`${baseUrl}/cooldown.php`, {
-		method: "POST",
-		headers,
-		body: new URLSearchParams({ action: "check" }),
-	});
-
-	const proxyRes = await fetch(`${baseUrl}/proxy.php`, {
-		method: "POST",
-		headers,
-		body: new URLSearchParams({ url: youtubeUrl }),
-	});
-
+	const proxyRes = await fetch(proxyUrl, { method: "POST", headers, body: payload.toString() });
 	if (!proxyRes.ok) throw new Error("Gagal terhubung ke ytdown.");
-	const proxyData = await proxyRes.json();
-	if (proxyData.api?.status !== "ok") throw new Error("Video tidak ditemukan atau link tidak valid.");
+	
+	const data = await proxyRes.json();
+	if (data.api?.status !== "ok") throw new Error(data.api?.message || "Video tidak ditemukan atau link tidak valid.");
 
-	const videoInfo = proxyData.api;
-	let selectedMedia;
+	return {
+		title: data.api.title,
+		channel: data.api.userInfo?.name || "Unknown",
+		duration: data.api.mediaItems[0]?.mediaDuration || "Unknown",
+		thumbnail: data.api.imagePreviewUrl,
+		cookie: sessionId,
+		userAgent: userAgent,
+		downloads: data.api.mediaItems.map((item) => ({
+			type: item.type,
+			quality: item.mediaQuality,
+			size: item.mediaFileSize,
+			format: item.mediaExtension,
+			url: item.mediaUrl || item.mediaPreviewUrl
+		}))
+	};
+}
 
-	if (type === "audio") {
-		selectedMedia =
-			videoInfo.mediaItems.find((m) => m.type === "Audio" && m.mediaExtension.toLowerCase() === "mp3") ||
-			videoInfo.mediaItems.find((m) => m.type === "Audio");
-	} else {
-		selectedMedia =
-			videoInfo.mediaItems.find((m) => m.type === "Video" && m.mediaQuality === "SD") ||
-			videoInfo.mediaItems.find((m) => m.type === "Video" && m.mediaQuality === "HD") ||
-			videoInfo.mediaItems.find((m) => m.type === "Video");
-	}
-
-	if (!selectedMedia) throw new Error("Format yang diminta tidak tersedia untuk video ini.");
-
-	let pollingUrl = selectedMedia.mediaUrl;
+async function pollAndDownload(mediaUrl, cookie, userAgent) {
+	let pollingUrl = mediaUrl;
 	let actualDownloadUrl = null;
 	let retryCount = 0;
-	const maxRetries = 25;
+	const maxRetries = 30; 
 	
+	const headers = {
+		"User-Agent": userAgent,
+		"Cookie": cookie,
+		"Referer": "https://app.ytdown.to/",
+		"Accept": "*/*"
+	};
+
 	while (retryCount < maxRetries) {
 		const response = await fetch(pollingUrl, { headers });
 		const contentType = response.headers.get("content-type") || "";
 
 		if (contentType.includes("application/json")) {
 			const jsonData = await response.json();
+			const loadingStatuses = ["processing", "pending", "queued", "starting", "downloading", "merge"];
 			
-			const loadingStatuses = ["processing", "pending", "queued", "starting", "downloading"];
-			
-			if (loadingStatuses.includes(jsonData.status)) {
+			if (loadingStatuses.includes(jsonData.status?.toLowerCase())) {
 				retryCount++;
 				await new Promise((r) => setTimeout(r, 3000));
 				continue;
-			} else if (jsonData.status === "completed") {
-				actualDownloadUrl = jsonData.url || jsonData.downloadUrl || jsonData.fileUrl || jsonData.link || jsonData.download_url || jsonData.file;
-				
+			} else if (jsonData.status === "completed" || jsonData.status === "ok" || jsonData.url) {
+				actualDownloadUrl = jsonData.url || jsonData.downloadUrl || jsonData.fileUrl || jsonData.link;
 				if (!actualDownloadUrl) {
 					const match = JSON.stringify(jsonData).match(/https?:\/\/[^\s"']+/);
 					if (match) actualDownloadUrl = match[0];
 				}
-				
-				if (!actualDownloadUrl) {
-					if (type === "audio") {
-						actualDownloadUrl = selectedMedia.mediaPreviewUrl;
-					} else {
-						throw new Error("Gagal mendapatkan link video yang berisi audio dari server.");
-					}
-				}
 				break;
 			} else {
-				throw new Error(`Server ytdown error: ${jsonData.status || "Unknown"}`);
+				actualDownloadUrl = pollingUrl;
+				break;
 			}
 		} else {
 			actualDownloadUrl = pollingUrl;
@@ -85,20 +86,19 @@ async function YtDown(youtubeUrl, type) {
 		}
 	}
 
-	if (!actualDownloadUrl) throw new Error("Timeout saat memproses media.");
+	if (!actualDownloadUrl) throw new Error("Timeout! Server terlalu lama memproses media.");
 
-	return {
-		url: actualDownloadUrl,
-		title: videoInfo.title,
-		channel: videoInfo.userInfo.name,
-		headers
-	};
+	const res = await fetch(actualDownloadUrl, { headers });
+	if (!res.ok) throw new Error(`Gagal mengunduh file media (HTTP: ${res.status})`);
+	
+	const buf = Buffer.from(await res.arrayBuffer());
+	return buf;
 }
 
 export default {
 	name: "youtube",
 	description: "Download video atau audio dari YouTube",
-	command: ["yt2","ytmp4", "ytmp3"],
+	command: ["yt", "ytmp4", "ytmp3"], 
 	category: "downloader",
 	permissions: "all",
 	cooldown: 5,
@@ -106,56 +106,87 @@ export default {
 	hidden: false,
 	react: true,
 	usage: "$prefix$command <url>",
-	wait: "Memproses, tunggu sebentar...",
+	wait: null,
 	failed: "Gagal menjalankan perintah",
 
 	execute: async (m) => {
-		const input =
-			m.text?.trim() ||
-			m.quoted?.url ||
-			null;
+		const input = m.text?.trim() || m.quoted?.text || null;
 
 		if (!input) {
-			return m.reply("Masukkan URL YouTube\nContoh: .ytmp4 https://youtu.be/h686-hQmsos?si=xB-VY_NccPY7WTOR");
+			return m.reply("Input URL Youtube.");
+		}
+
+		const isNumber = /^\d+$/.test(input);
+
+		if (isNumber) {
+			const session = sesiyt.get(m.sender);
+			if (!session) return m.reply("Sesi download tidak ditemukan atau kedaluwarsa. Silakan kirim ulang link YouTube-nya.");
+
+			const index = parseInt(input) - 1;
+			const selected = session.downloads[index];
+
+			if (!selected) return m.reply(`Pilihan tidak sesuai. Silakan pilih nomor 1 sampai ${session.downloads.length}.`);
+
+			await m.reply(`📥 Download: format *${selected.type} (${selected.quality})*\nMohon ditunggu sebentar...`);
+
+			try {
+				const buf = await pollAndDownload(selected.url, session.cookie, session.userAgent);
+				
+				if (buf.length < 50000) throw new Error("File corrupt atau terlalu kecil, coba lagi.");
+				const file = await fileTypeFromBuffer(buf);
+
+				const caption = `🎬 *${session.title}*\n\nSukses dengan format ${selected.quality} (${selected.format}).`;
+
+				if (selected.type.toLowerCase() === "audio") {
+					await m.reply({
+						audio: buf,
+						mimetype: file?.mime || "audio/mp4",
+						ptt: false
+					});
+				} else {
+					await m.reply({
+						video: buf,
+						caption: caption,
+						mimetype: file?.mime || "video/mp4"
+					});
+				}
+
+				sesiyt.delete(m.sender);
+				return;
+
+			} catch (err) {
+				return m.reply(`Gagal mengunduh: ${err.message}`);
+			}
+		}
+
+		if (!input.includes("youtu")) {
+			return m.reply("Link tidak valid.");
 		}
 
 		try {
-			const isAudio = m.command.toLowerCase() === "ytmp3";
-			const type = isAudio ? "audio" : "video";
+			await m.reply("Mohon Tunggu Sebentar...");
+			const result = await getYtdown(input);
 
-			const result = await YtDown(input, type);
+			sesiyt.set(m.sender, result);
 
-			const res = await fetch(result.url, { headers: result.headers });
-			if (!res.ok) throw new Error("Gagal mengunduh media");
+			let msgText = `🎬 *${result.title}*\n`;
+			msgText += `👤 Channel: ${result.channel}\n`;
+			msgText += `⏱️ Durasi: ${result.duration}\n\n`;
+			msgText += `*Kualitas yang Tersedia:*\n`;
 
-			const buf = Buffer.from(await res.arrayBuffer());
+			result.downloads.forEach((d, i) => {
+				msgText += `*[ ${i + 1} ]* ${d.type} - ${d.quality} (${d.size})\n`;
+			});
 
-			if (buf.length < 50000) {
-				throw new Error("File corrupt, coba lagi");
-			}
-
-			const file = await fileTypeFromBuffer(buf);
-
-			const caption = `🎬 *YouTube Downloader*\n\n` +
-							`📌 ${result.title}\n` +
-							`👤 ${result.channel}`;
-
-			if (isAudio) {
-				return m.reply({
-					audio: buf,
-					mimetype: file?.mime || "audio/mp4",
-					ptt: false
-				});
-			}
+			msgText += `\n💡 *Cara Unduh:* Balas/Reply pesan ini dengan perintah:\n*${m.prefix || '.'}${m.command} <nomor>*\n_(Contoh: ${m.prefix || '.'}${m.command} 1)_`;
 
 			return m.reply({
-				video: buf,
-				caption: caption,
-				mimetype: file?.mime || "video/mp4"
+				image: { url: result.thumbnail },
+				caption: msgText
 			});
 
 		} catch (err) {
-			return m.reply(`Gagal memproses YouTube\n${err.message}`);
+			return m.reply(`Gagal memproses YouTube: ${err.message}`);
 		}
 	}
 };
