@@ -11,30 +11,12 @@ function centerText(text, width = 55) {
 function art() {
 	return [
 		colorize(Colors.FgWhite, centerText("Yu Xin (于欣) by Huang Li Wen")),
-		colorize(
-			Colors.FgWhite,
-			"+====================================================+"
-		),
-		colorize(
-			Colors.FgWhite,
-			"|         ,-~~\\             ,-. <~)_   ,-==.     ;. .|"
-		),
-		colorize(
-			Colors.FgWhite,
-			"|          (   \\            | |  ( v~\\  (  (\\   ; |  |"
-		),
-		colorize(
-			Colors.FgWhite,
-			"|.-===-.,   |\\. \\   .-==-.  | '   \\_/'   |\\.\\\\  `.|  |"
-		),
-		colorize(
-			Colors.FgWhite,
-			"|\\.___.'   _]_]\\ \\ /______\\ |     /\\    _]_]\\ \\   |  |"
-		),
-		colorize(
-			Colors.FgWhite,
-			"+====================================================+"
-		),
+		colorize(Colors.FgWhite, "+====================================================+"),
+		colorize(Colors.FgWhite, "|         ,-~~\\             ,-. <~)_   ,-==.     ;. .|"),
+		colorize(Colors.FgWhite, "|          (   \\            | |  ( v~\\  (  (\\   ; |  |"),
+		colorize(Colors.FgWhite, "|.-===-.,   |\\. \\   .-==-.  | '   \\_/'   |\\.\\\\  `.|  |"),
+		colorize(Colors.FgWhite, "|\\.___.'   _]_]\\ \\ /______\\ |     /\\    _]_]\\ \\   |  |"),
+		colorize(Colors.FgWhite, "+====================================================+"),
 	].join("\n");
 }
 
@@ -51,6 +33,14 @@ async function animateStartup() {
 
 const bot = new Connect();
 
+process.on("uncaughtException", (err) => {
+	print.error(colorize(Colors.FgRed, "Caught exception:"), err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+	print.error(colorize(Colors.FgRed, "Unhandled Rejection at:"), promise, "reason:", reason);
+});
+
 try {
 	console.log(art());
 	await animateStartup();
@@ -62,10 +52,25 @@ try {
 
 	process.on("SIGINT", async () => {
 		print.debug(colorize(Colors.FgYellow, "🛑 Stopping bot..."));
-		bot.pluginManager.stopAllPeriodicTasks();
-		print.debug(colorize(Colors.FgGreen, "✅ Bot stopped successfully"));
-		process.exit(0);
+		try {
+			bot.pluginManager.stopAllPeriodicTasks();
+			
+			if (bot.store && typeof bot.store.stopSaving === "function") {
+				bot.store.stopSaving();
+			}
+
+			if (bot.sock) {
+				bot.sock.end(undefined); 
+			}
+
+			print.debug(colorize(Colors.FgGreen, "✅ Bot and DB connections stopped successfully"));
+			process.exit(0);
+		} catch (err) {
+			print.error("Error during shutdown:", err);
+			process.exit(1);
+		}
 	});
+
 } catch (error) {
 	print.error(colorize(Colors.FgRed, "Failed to start WhatsApp Bot:"), error);
 	process.exit(1);
