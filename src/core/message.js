@@ -3,6 +3,32 @@ import { getPrefix } from "#lib/prefix";
 import { print } from "#lib/print";
 import serialize from "#lib/serialize";
 
+let settingsCache = null;
+let settingsCacheTime = 0;
+const settingCache_TTL = 10_000; 
+
+async function getCachedSettings() {
+	const now = Date.now();
+	if (settingsCache && now - settingsCacheTime < settingCache_TTL) {
+		return settingsCache;
+	}
+	try {
+		if (!db?.SettingsModel?.getSettings) {
+			return {};
+		}
+		settingsCache = await db.SettingsModel.getSettings();
+		settingsCacheTime = now;
+		return settingsCache;
+	} catch (err) {
+		console.error("DB Failed to load settings:", err);
+		return settingsCache || {};
+	}
+}
+
+export function invalidateSettingsCache() {
+	settingsCache = null;
+}
+
 /**
  * Class for processing incoming messages and routing them to the PluginManager.
  */
@@ -32,19 +58,7 @@ class Message {
 			return;
 		}
 
-		let settings = {};
-		try {
-			if (!db?.SettingsModel?.getSettings) {
-				console.warn(
-					"[DB] SettingsModel not ready; using empty settings."
-				);
-			} else {
-				settings = await db.SettingsModel.getSettings();
-			}
-		} catch (err) {
-			console.error("[DB] Failed to load settings:", err);
-			settings = {};
-		}
+		const settings = await getCachedSettings();
 
 		for (const msg of messages) {
 			try {
@@ -68,7 +82,9 @@ class Message {
 
 				const userId = m.senderPn || m.sender;
 				if (db?.UserModel?.setUser && userId) {
-					await db.UserModel.setUser(userId, { name: m.pushName });
+					db.UserModel.setUser(userId, { name: m.pushName }).catch((e) =>
+						console.error("DB setUser failed:", e)
+					);
 				}
 
 				await print(m, sock);
@@ -83,17 +99,10 @@ class Message {
 				);
 
 				let groups = {};
-				try {
-					if (!db?.GroupModel?.getGroup) {
-						console.warn(
-							"[DB] GroupModel not ready; using empty groups."
-						);
-					} else {
-						groups = await db.GroupModel.getGroup(m.from);
-					}
-				} catch (err) {
-					console.error("[DB] Failed to load groups:", err);
-					groups = {};
+				if (m.isGroup && db?.GroupModel?.getGroup) {
+					groups = await this.pluginManager
+						.getCachedGroup(m.from)
+						.catch(() => ({}));
 				}
 
 				m.prefix = prefix;
@@ -115,12 +124,24 @@ class Message {
 					continue;
 				}
 
+				const sideEffects = [];
+
 				if (m.isCommand) {
 					await this.pluginManager.enqueueCommand(sock, m);
 				}
 
-				await this.pluginManager.runPeriodicMessagePlugins(m, sock);
-				await this.pluginManager.handleAfterPlugins(m, sock);
+				sideEffects.push(
+					this.pluginManager
+						.runPeriodicMessagePlugins(m, sock)
+						.catch((e) => console.error("[Periodic] Error:", e))
+				);
+				sideEffects.push(
+					this.pluginManager
+						.handleAfterPlugins(m, sock)
+						.catch((e) => console.error("[After] Error:", e))
+				);
+
+				Promise.all(sideEffects);
 			} catch (error) {
 				console.error("Error processing message:", error);
 			}
