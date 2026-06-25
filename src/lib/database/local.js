@@ -1,5 +1,6 @@
 import { GroupSchema, SettingsSchema, UserSchema } from "#lib/schema/index";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 
 class Helper {
 	constructor(name, data, schema) {
@@ -47,6 +48,9 @@ class LocalDB {
 		sessions: {},
 	};
 
+	#saveTimer = null;
+	#saveDelay = 2000; 
+
 	constructor() {
 		this.users = new Helper("users", this.#data.users, UserSchema);
 		this.groups = new Helper("groups", this.#data.groups, GroupSchema);
@@ -86,7 +90,33 @@ class LocalDB {
 	}
 
 	save() {
-		writeFileSync(this.#path, JSON.stringify(this.#data, null, 2));
+		if (this.#saveTimer) {
+			return; 
+		}
+		this.#saveTimer = setTimeout(async () => {
+			this.#saveTimer = null;
+			try {
+				await writeFile(
+					this.#path,
+					JSON.stringify(this.#data, null, 2),
+					"utf-8"
+				);
+			} catch (e) {
+				console.error("LocalDB Failed to save:", e);
+			}
+		}, this.#saveDelay);
+	}
+
+	async saveNow() {
+		if (this.#saveTimer) {
+			clearTimeout(this.#saveTimer);
+			this.#saveTimer = null;
+		}
+		await writeFile(
+			this.#path,
+			JSON.stringify(this.#data, null, 2),
+			"utf-8"
+		);
 	}
 
 	savePeriodically(interval = 10_000) {
