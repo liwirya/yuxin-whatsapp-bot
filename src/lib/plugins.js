@@ -25,15 +25,49 @@ class PluginManager {
 		this.store = new Store(this.sessionName);
 		this.MAX_QUEUE_PER_USER = 5;
 		this.periodicTasks = [];
+
+		this._groupCache = new Map(); 
+		this.GROUP_CACHE_TTL = 30_000; 
+		
+		this._commandMap = new Map(); 
 	}
 
 	/**
 	 * Stable key for user-scoped cache/queue.
-	 * Prefer PN if available (m.senderPn), fallback PN/LID.
-	 * Prevents split identities when WA returns LID sometimes and PN other times.
 	 */
 	getStableSenderKey(m) {
 		return m?.senderPn || m?.sender || m?.senderLid || "";
+	}
+
+	async getCachedGroup(groupId) {
+		const cached = this._groupCache.get(groupId);
+		if (cached && Date.now() - cached.ts < this.GROUP_CACHE_TTL) {
+			return cached.data;
+		}
+		const data = (await db.GroupModel.getGroup(groupId)) || {};
+		this._groupCache.set(groupId, { data, ts: Date.now() });
+		return data;
+	}
+
+	invalidateGroupCache(groupId) {
+		if (groupId) {
+			this._groupCache.delete(groupId);
+		} else {
+			this._groupCache.clear();
+		}
+	}
+
+	_rebuildCommandMap() {
+		this._commandMap.clear();
+		for (const plugin of this.plugins) {
+			for (const cmd of plugin.command) {
+				this._commandMap.set(cmd.toLowerCase(), plugin);
+			}
+		}
+	}
+
+	findPlugin(command) {
+		return this._commandMap.get(command.toLowerCase()) || null;
 	}
 
 	async loadPlugins() {
@@ -94,6 +128,8 @@ class PluginManager {
 			await Promise.all(pluginLoadPromises);
 
 			await this.applyPeriodicSettingsFromDB();
+
+			this._rebuildCommandMap();
 
 			setAllCommands(this.getAllCommands());
 			print.info(`🚀 Successfully loaded ${this.plugins.length} plugins`);
@@ -242,7 +278,9 @@ class PluginManager {
 		}
 
 		const isDuplicate = queue.some(
-			(item) => item.m.command === m.command && item.m.args === m.args
+			(item) =>
+				item.m.command === m.command &&
+				JSON.stringify(item.m.args) === JSON.stringify(m.args)
 		);
 
 		if (isDuplicate) {
@@ -273,25 +311,24 @@ class PluginManager {
 
 		const { sock, m } = queue.shift();
 		const command = (m.command || "").toLowerCase();
-		const plugin = this.plugins.find((p) =>
-			p.command.some((cmd) => cmd.toLowerCase() === command)
-		);
+
+		const plugin = this.findPlugin(command);
 
 		try {
 			if (!plugin) {
 				return this.continueQueue(senderKey);
 			}
 
-			const checks = [
-				this.checkCooldown(plugin, m, sock),
-				this.checkEnvironment(plugin, m, sock),
-				this.checkPermissions(plugin, m, sock),
-				this.checkUsage(plugin, m, sock),
-				this.checkDailyLimit(plugin, m, sock),
-			];
+			const [cooldownBlocked, envBlocked, permBlocked, usageBlocked, dailyBlocked] =
+				await Promise.all([
+					this.checkCooldown(plugin, m, sock),
+					this.checkEnvironment(plugin, m, sock),
+					this.checkPermissions(plugin, m, sock),
+					this.checkUsage(plugin, m, sock),
+					this.checkDailyLimit(plugin, m, sock),
+				]);
 
-			const results = await Promise.all(checks);
-			if (results.some((result) => result)) {
+			if (cooldownBlocked || envBlocked || permBlocked || usageBlocked || dailyBlocked) {
 				return this.continueQueue(senderKey);
 			}
 
@@ -356,11 +393,6 @@ class PluginManager {
 		return false;
 	}
 
-	/**
-	 * LID/PN-safe permission checks.
-	 * In v7, participants use id + optional phoneNumber/lid. Admin role is in p.admin.
-	 * See Baileys group participant extraction & dual identity notes.
-	 */
 	async checkPermissions(plugin, m, sock) {
 		const isOwner = m.isOwner;
 		const isClonebot =
@@ -498,11 +530,15 @@ class PluginManager {
 	}
 
 	async sendPreExecutionActions(plugin, m) {
+		const actions = [];
 		if (plugin.wait) {
-			await m.reply(plugin.wait);
+			actions.push(m.reply(plugin.wait));
 		}
 		if (plugin.react) {
-			await m.react("🔄");
+			actions.push(m.react("🔄"));
+		}
+		if (actions.length) {
+			await Promise.all(actions);
 		}
 	}
 
@@ -652,10 +688,6 @@ class PluginManager {
 		print.debug(`🛑 [Scheduler] Task '${name}' stopped`);
 	}
 
-	/**
-	 * Only periodic with type: 'interval' is scheduled here.
-	 * Periodic with type: 'message' is called in message handler.
-	 */
 	scheduleAllPeriodicTasks(sock) {
 		this.sock = sock;
 		print.debug(
