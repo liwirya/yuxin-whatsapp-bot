@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Node.js](https://img.shields.io/badge/Node.js-18+-43A047?style=flat-square&logo=node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-20+-43A047?style=flat-square&logo=node.js&logoColor=white)
 ![Baileys](https://img.shields.io/badge/Baileys-Latest-00BCD4?style=flat-square&logo=whatsapp&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-7E57C2?style=flat-square)
 ![Stars](https://img.shields.io/github/stars/liwirya/cellyn-whatsapp-bot?style=flat-square&color=FFA726)
