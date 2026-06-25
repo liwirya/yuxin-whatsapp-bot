@@ -10,13 +10,16 @@ function centerText(text, width = 55) {
 
 function art() {
 	return [
-		colorize(Colors.FgWhite, centerText("Yu Xin (于欣) by Huang Li Wen")),
-		colorize(Colors.FgWhite, "+====================================================+"),
-		colorize(Colors.FgWhite, "|         ,-~~\\             ,-. <~)_   ,-==.     ;. .|"),
-		colorize(Colors.FgWhite, "|          (   \\            | |  ( v~\\  (  (\\   ; |  |"),
-		colorize(Colors.FgWhite, "|.-===-.,   |\\. \\   .-==-.  | '   \\_/'   |\\.\\\\  `.|  |"),
-		colorize(Colors.FgWhite, "|\\.___.'   _]_]\\ \\ /______\\ |     /\\    _]_]\\ \\   |  |"),
-		colorize(Colors.FgWhite, "+====================================================+"),
+		colorize(Colors.FgCyan,  "╔════════════════════════════════════════════════════╗"),
+		colorize(Colors.FgWhite, " ██████╗███████╗██╗     ██╗  ██╗   ██╗███╗   ██╗    "),
+		colorize(Colors.FgWhite, "██╔════╝██╔════╝██║     ██║  ╚██╗ ██╔╝████╗  ██║    "),
+		colorize(Colors.FgWhite, "██║     █████╗  ██║     ██║   ╚████╔╝ ██╔██╗ ██║    "),
+		colorize(Colors.FgWhite, "██║     ██╔══╝  ██║     ██║    ╚██╔╝  ██║╚██╗██║    "),
+		colorize(Colors.FgWhite, "╚██████╗███████╗███████╗███████╗██║   ██║ ╚████║    "),
+		colorize(Colors.FgWhite, " ╚═════╝╚══════╝╚══════╝╚══════╝╚═╝   ╚═╝  ╚═══╝    "),
+		colorize(Colors.FgCyan,  "╠════════════════════════════════════════════════════╣"),
+		colorize(Colors.FgYellow,"║       Cellyn WhatsApp Bot by Liwirya  ║"),
+		colorize(Colors.FgCyan,  "╚════════════════════════════════════════════════════╝"),
 	].join("\n");
 }
 
